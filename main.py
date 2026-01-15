@@ -11,7 +11,8 @@ from aiogram.types import (
 
 from config import BOT_TOKEN  # REDIS_URL
 
-from handlers import profile, start
+from database import init_models
+from handlers import profile, start, water, cancel, food
 
 
 async def on_startup(bot: Bot):
@@ -22,6 +23,7 @@ async def on_startup(bot: Bot):
         BotCommand(command="log_food", description="Запись еды"),
         BotCommand(command="log_workout", description="Запись тренировки"),
         BotCommand(command="check_progress", description="Проверка прогресса"),
+        BotCommand(command="cancel", description="Отмена действия")
     ]
     await bot.set_my_commands(commands)
 
@@ -56,13 +58,17 @@ async def on_startup(bot: Bot):
 
 
 async def main() -> None:
+    await init_models()
     # storage = RedisStorage.from_url(REDIS_URL)
 
     bot = Bot(token=BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
     dp = Dispatcher()
 
-    dp.include_router(profile.router)
+    dp.include_router(cancel.router)
     dp.include_router(start.router)
+    dp.include_router(profile.router)
+    dp.include_router(water.router)
+    dp.include_router(food.router)
 
     dp.startup.register(on_startup)
 

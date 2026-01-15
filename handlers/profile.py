@@ -2,11 +2,14 @@ from aiogram import Router
 from aiogram.types import Message, ReplyKeyboardRemove
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
+from sqlalchemy import select
+
 from states.states import ProfileStates
+from models.models import User
+from database import AsyncSessionLocal
 import re
 
 router = Router()
-user_profiles = {}  # Глобальное хранилище профилей
 
 
 def calculate_goals(
@@ -14,10 +17,8 @@ def calculate_goals(
 ) -> tuple[int, int]:
     """Точные формулы из ТЗ"""
 
-    # 🔥 Калории: 10×Вес + 6.25×Рост - 5×Возраст
     calorie_base = 10 * weight + 6.25 * height - 5 * age
 
-    # Множитель активности
     if activity_minutes < 30:
         factor = 1.2
     elif activity_minutes < 60:
@@ -29,7 +30,6 @@ def calculate_goals(
 
     calorie_goal = int(calorie_base * factor)
 
-    # 💧 Вода: Вес×30 + 500×(активность/30) + 750(>25°C)
     water_base = weight * 30
     water_activity = (activity_minutes // 30) * 500
     water_weather = 750 if city_temp > 25 else 0
@@ -47,10 +47,55 @@ def calculate_goals(
     )
 
 
+async def get_user_from_db(telegram_id: int):
+    async with AsyncSessionLocal() as session:
+        result = await session.execute(
+            select(User).where(User.telegram_id == telegram_id)
+        )
+        return result.scalar_one_or_none()
+
+
+async def save_user_to_db(user_data: dict):
+    async with AsyncSessionLocal() as session:
+        telegram_id = user_data["telegram_id"]
+        existing = await session.get(User, telegram_id)
+        if existing:
+            # Обновляем
+            for key, value in user_data.items():
+                if hasattr(existing, key):
+                    setattr(existing, key, value)
+        else:
+            # Создаём нового
+            new_user = User(**user_data)
+            session.add(new_user)
+        await session.commit()
+
+
 @router.message(Command("set_profile"))
 async def cmd_set_profile(message: Message, state: FSMContext):
-    await message.answer("👤 <b>Настройка профиля</b>\n\n📊 Введите вес (кг):")
-    await state.set_state(ProfileStates.weight)
+    telegram_id = message.from_user.id
+
+    # Проверяем наличие в БД
+    user_in_db = await get_user_from_db(telegram_id)
+
+    if user_in_db:
+        gender_display = (
+            "Мужчина" if user_in_db.gender in ["мужчина", "м"] else "Женщина"
+        )
+        await message.answer(
+            "✅ <b>Ваш профиль уже настроен:</b>\n\n"
+            f"👤 <b>{gender_display}</b>\n"
+            f"📏 {user_in_db.weight} кг, {user_in_db.height} см, {user_in_db.age} лет\n"
+            f"🏙️ {user_in_db.city}, {user_in_db.activity_minutes} мин/день\n\n"
+            f"🔥 <b>Калории:</b> {user_in_db.calorie_goal} ккал\n"
+            f"💧 <b>Вода:</b> {user_in_db.water_goal} мл\n\n"
+            "🔄 Хотите обновить профиль? Начнём с веса.\n"
+            "Введите новый вес (кг) или отправьте /cancel для отмены."
+        )
+        await state.set_state(ProfileStates.weight)
+    else:
+        await message.answer("👤 <b>Настройка профиля</b>\n\n📊 Введите вес (кг):")
+        await state.set_state(ProfileStates.weight)
 
 
 @router.message(ProfileStates.weight)
@@ -192,18 +237,33 @@ async def process_water_goal(message: Message, state: FSMContext):
         await message.answer("❌ Вода: 200-10000 мл или 'пропустить'")
         return
 
-    # опциально храним в памяти (лучше в бд)
     telegram_id = message.from_user.id
-    user_profiles[telegram_id] = {
-        **data,
-        "water_goal": water_goal,
+
+    # Подготавливаем данные для сохранения в БД
+    user_data = {
         "telegram_id": telegram_id,
-        "updated_at": "память",
+        "weight": data["weight"],
+        "height": data["height"],
+        "age": data["age"],
+        "gender": data["gender"],
+        "city": data["city"],
+        "activity_minutes": data["activity_minutes"],
+        "calorie_goal": data["calorie_goal"],
+        "water_goal": water_goal,
     }
 
+    try:
+        await save_user_to_db(user_data)
+    except Exception as e:
+        await message.answer("⚠️ Ошибка сохранения профиля. Попробуйте позже.")
+        print(f"DB Error: {e}")
+        return
+
+    gender_display = "Мужчина" if data["gender"] in ["мужчина", "м"] else "Женщина"
+
     await message.answer(
-        "✅ <b>Профиль сохранён!</b>\n\n"
-        f"👤 <b>{data['gender'].title()}</b>\n"
+        "✅ <b>Профиль сохранён в базе данных!</b>\n\n"
+        f"👤 <b>{gender_display}</b>\n"
         f"📏 {data['weight']} кг, {data['height']} см, {data['age']} лет\n"
         f"🏙️ {data['city']}, {data['activity_minutes']} мин/день\n\n"
         f"🔥 <b>Калории:</b> {data['calorie_goal']} ккал\n"
