@@ -18,7 +18,6 @@ async def cmd_log_water(message: Message, state: FSMContext):
     args = message.text.split(maxsplit=1)
     telegram_id = message.from_user.id
 
-    # Проверяем, есть ли пользователь в БД
     user = await get_user_profile(telegram_id)
 
     if not user:

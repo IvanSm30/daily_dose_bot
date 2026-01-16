@@ -1,4 +1,3 @@
-# models.py
 from sqlalchemy import (
     BigInteger,
     Column,
