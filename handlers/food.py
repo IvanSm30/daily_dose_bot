@@ -4,12 +4,16 @@ from aiogram.types import Message
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 
+from datetime import datetime, timezone
+from sqlalchemy import func, select
 from states.states import FoodStates
-from models.models import User, FoodLog
+from models.models import FoodLog
 from database import AsyncSessionLocal
 
 import json
 import logging
+
+from utils import get_user_profile
 
 router = Router()
 
@@ -24,7 +28,7 @@ async def search_openfoodfacts(product_name: str) -> dict | None:
     """Ищет продукт в OpenFoodFacts с фокусом на Россию + подробное логирование"""
     if product_name in _product_cache:
         return _product_cache[product_name]
-    
+
     url = "https://world.openfoodfacts.org/cgi/search.pl"
 
     params = {
@@ -127,11 +131,11 @@ async def cmd_log_food(message: Message, state: FSMContext):
     telegram_id = message.from_user.id
 
     # Проверка профиля
-    async with AsyncSessionLocal() as session:
-        user = await session.get(User, telegram_id)
-        if not user:
-            await message.answer("❌ Сначала настрой профиль: /set_profile")
-            return
+    profile = await get_user_profile(telegram_id)
+
+    if not profile:
+        await message.answer("❌ Сначала настрой профиль: /set_profile")
+        return
 
     if len(args) > 1:
         product_name = args[1].strip()
@@ -190,22 +194,62 @@ async def process_food_weight(message: Message, state: FSMContext):
     data = await state.get_data()
     name = data["name"]
     calories_per_100g = data["calories_per_100g"]
-
     total_calories = round(calories_per_100g * weight / 100)
 
-    # Сохраняем в БД
-    telegram_id = message.from_user.id
+    await _save_food_entry(
+        telegram_id=message.from_user.id,
+        name=name,
+        weight=weight,
+        calories=total_calories,
+        message=message,
+    )
+    await state.clear()
+
+
+async def _save_food_entry(
+    telegram_id: int,
+    name: str,
+    weight: int,
+    calories: int,
+    message: Message,
+):
     async with AsyncSessionLocal() as session:
+        user = await get_user_profile(telegram_id)
+
+        if not user:
+            await message.answer("❌ Сначала настрой профиль: /set_profile")
+            return
+
         new_log = FoodLog(
             telegram_id=telegram_id,
             name=name,
             weight=weight,
-            calories=total_calories,
+            calories=calories,
         )
         session.add(new_log)
         await session.commit()
 
-    await message.answer(
-        f"✅ Записано: <b>{total_calories} ккал</b> ({weight} г {name.lower()})."
-    )
-    await state.clear()
+        today_start = datetime.now(timezone.utc).replace(
+            hour=0, minute=0, second=0, microsecond=0
+        )
+        total_result = await session.execute(
+            select(func.sum(FoodLog.calories))
+            .where(FoodLog.telegram_id == telegram_id)
+            .where(FoodLog.logged_at >= today_start)
+        )
+        total_calories_today = total_result.scalar() or 0
+
+        # Считаем остаток
+        goal = user.calorie_goal
+        remaining = max(0, goal - total_calories_today)
+        status = (
+            "✅ Вы уложились в норму!"
+            if remaining == 0
+            else f"📉 Осталось: {remaining} ккал"
+        )
+
+        await message.answer(
+            f"✅ Записано: {calories} ккал ({weight} г {name.lower()})\n"
+            f"📊 Сегодня: {total_calories_today} / {goal} ккал\n"
+            f"{status}"
+        )

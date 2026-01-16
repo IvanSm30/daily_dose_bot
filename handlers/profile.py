@@ -9,6 +9,8 @@ from models.models import User
 from database import AsyncSessionLocal
 import re
 
+from utils import invalidate_user_cache
+
 router = Router()
 
 
@@ -55,7 +57,7 @@ async def get_user_from_db(telegram_id: int):
         return result.scalar_one_or_none()
 
 
-async def save_user_to_db(user_data: dict):
+async def save_user_to_db(user_data: dict, message: Message):
     async with AsyncSessionLocal() as session:
         telegram_id = user_data["telegram_id"]
         existing = await session.get(User, telegram_id)
@@ -69,6 +71,7 @@ async def save_user_to_db(user_data: dict):
             new_user = User(**user_data)
             session.add(new_user)
         await session.commit()
+        invalidate_user_cache(message.from_user.id)
 
 
 @router.message(Command("set_profile"))
@@ -253,7 +256,7 @@ async def process_water_goal(message: Message, state: FSMContext):
     }
 
     try:
-        await save_user_to_db(user_data)
+        await save_user_to_db(user_data, message)
     except Exception as e:
         await message.answer("⚠️ Ошибка сохранения профиля. Попробуйте позже.")
         print(f"DB Error: {e}")

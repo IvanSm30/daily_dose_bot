@@ -12,7 +12,7 @@ from aiogram.types import (
 from config import BOT_TOKEN  # REDIS_URL
 
 from database import init_models
-from handlers import profile, start, water, cancel, food
+from handlers import profile, progress, start, water, cancel, food
 
 
 async def on_startup(bot: Bot):
@@ -69,6 +69,7 @@ async def main() -> None:
     dp.include_router(profile.router)
     dp.include_router(water.router)
     dp.include_router(food.router)
+    dp.include_router(progress.router)
 
     dp.startup.register(on_startup)
 
