@@ -12,7 +12,7 @@ from aiogram.types import (
 from config import BOT_TOKEN  # REDIS_URL
 
 from database import init_models
-from handlers import profile, progress, start, water, cancel, food, workout
+from handlers import graphic, profile, progress, start, water, cancel, food, workout
 
 from middlewares.logger import CommandLoggerMiddleware
 
@@ -32,6 +32,7 @@ async def on_startup(bot: Bot):
         BotCommand(command="log_workout", description="Запись тренировки"),
         BotCommand(command="check_progress", description="Проверка прогресса"),
         BotCommand(command="cancel", description="Отмена действия"),
+        BotCommand(command="show_graphic", description="Показать график"),
     ]
     await bot.set_my_commands(commands)
 
@@ -51,6 +52,7 @@ async def main() -> None:
     dp.include_router(food.router)
     dp.include_router(workout.router)
     dp.include_router(progress.router)
+    dp.include_router(graphic.router)
 
     dp.startup.register(on_startup)
 
