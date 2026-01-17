@@ -1,4 +1,3 @@
-# handlers/graphs.py
 from aiogram import Router
 from aiogram.types import Message, InputFile
 from aiogram.filters import Command
