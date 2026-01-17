@@ -30,7 +30,6 @@ async def on_startup(bot: Bot):
 
 async def main() -> None:
     await init_models()
-    # storage = RedisStorage.from_url(REDIS_URL)
 
     bot = Bot(token=BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
     dp = Dispatcher()
