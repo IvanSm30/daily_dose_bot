@@ -14,6 +14,14 @@ from config import BOT_TOKEN  # REDIS_URL
 from database import init_models
 from handlers import profile, progress, start, water, cancel, food, workout
 
+from middlewares.logger import CommandLoggerMiddleware
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
+
 
 async def on_startup(bot: Bot):
     commands = [
@@ -33,6 +41,8 @@ async def main() -> None:
 
     bot = Bot(token=BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
     dp = Dispatcher()
+
+    dp.message.middleware(CommandLoggerMiddleware())
 
     dp.include_router(cancel.router)
     dp.include_router(start.router)
