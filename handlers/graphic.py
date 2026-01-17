@@ -1,6 +1,6 @@
 # handlers/graphs.py
 from aiogram import Router
-from aiogram.types import Message
+from aiogram.types import Message, InputFile
 from aiogram.filters import Command
 from services.graphic import generate_water_graph, generate_calories_graph
 from utils import get_user_profile
@@ -25,6 +25,10 @@ async def cmd_show_graph(message: Message):
         return
 
     if water_img:
-        await message.answer_photo(water_img, caption="💧 Ваш прогресс по воде")
+        await message.answer_photo(
+            InputFile(water_img), caption="💧 Ваш прогресс по воде"
+        )
     if calories_img:
-        await message.answer_photo(calories_img, caption="🔥 Ваш прогресс по калориям")
+        await message.answer_photo(
+            InputFile(calories_img), caption="🔥 Ваш прогресс по калориям"
+        )
