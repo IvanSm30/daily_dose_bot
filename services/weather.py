@@ -1,9 +1,10 @@
 import aiohttp
-import os
+
+from config import WEATHER_API_KEY
 
 
 async def get_temperature(city: str) -> float | None:
-    api_key = os.getenv("WEATHER_API_KEY")
+    api_key = WEATHER_API_KEY
     if not api_key or not city:
         return None
 
