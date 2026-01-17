@@ -69,8 +69,8 @@ async def main() -> None:
     dp.include_router(profile.router)
     dp.include_router(water.router)
     dp.include_router(food.router)
-    dp.include_router(progress.router)
     dp.include_router(workout.router)
+    dp.include_router(progress.router)
 
     dp.startup.register(on_startup)
 

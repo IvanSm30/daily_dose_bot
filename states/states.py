@@ -22,5 +22,6 @@ class FoodStates(StatesGroup):
 
 
 class WorkoutStates(StatesGroup):
-    kind = ()
-    duration = ()
+    kind = State()
+    calories_burned = State()
+    duration = State()

@@ -56,3 +56,4 @@ class WorkoutLog(Base):
     kind = Column(String, nullable=False)
     duration = Column(Integer, nullable=False)
     logged_at = Column(DateTime(timezone=True), server_default=func.now())
+    calories_burned = Column(Integer, nullable=False)

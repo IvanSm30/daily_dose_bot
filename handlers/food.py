@@ -7,7 +7,7 @@ from aiogram.fsm.context import FSMContext
 from datetime import datetime, timezone
 from sqlalchemy import func, select
 from states.states import FoodStates
-from models.models import FoodLog
+from models.models import FoodLog, WorkoutLog
 from database import AsyncSessionLocal
 
 import json
@@ -130,7 +130,6 @@ async def cmd_log_food(message: Message, state: FSMContext):
     args = message.text.split(maxsplit=1)
     telegram_id = message.from_user.id
 
-    # Проверка профиля
     profile = await get_user_profile(telegram_id)
 
     if not profile:
@@ -239,17 +238,24 @@ async def _save_food_entry(
         )
         total_calories_today = total_result.scalar() or 0
 
-        # Считаем остаток
         goal = user.calorie_goal
         remaining = max(0, goal - total_calories_today)
+
+        total_result_burned_calories = await session.execute(
+            select(func.sum(WorkoutLog.calories_burned))
+            .where(WorkoutLog.telegram_id == telegram_id)
+            .where(WorkoutLog.logged_at >= today_start)
+        )
+        total_burned_calories_today = total_result_burned_calories.scalar() or 0
+        
         status = (
             "✅ Вы уложились в норму!"
             if remaining == 0
-            else f"📉 Осталось: {remaining} ккал"
+            else f"📉 Осталось: {remaining + total_burned_calories_today} ккал"
         )
 
         await message.answer(
             f"✅ Записано: {calories} ккал ({weight} г {name.lower()})\n"
-            f"📊 Сегодня: {total_calories_today} / {goal} ккал\n"
+            f"📊 Сегодня: {total_calories_today} / {goal + total_burned_calories_today} ккал\n"
             f"{status}"
         )
