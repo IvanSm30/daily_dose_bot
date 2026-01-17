@@ -4,6 +4,7 @@ from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from sqlalchemy import select
 
+from services.weather import get_temperature
 from states.states import ProfileStates
 from models.models import User
 from database import AsyncSessionLocal
@@ -165,6 +166,10 @@ async def process_activity(message: Message, state: FSMContext):
 
     data = await state.get_data()
     activity_minutes = int(text)
+    
+    city_temp = None
+    if data["city"]:
+        city_temp = await get_temperature(data["city"])
 
     (
         calorie_goal,
@@ -179,6 +184,7 @@ async def process_activity(message: Message, state: FSMContext):
         height=data["height"],
         age=data["age"],
         activity_minutes=activity_minutes,
+        city_temp=city_temp
     )
 
     await state.update_data(
